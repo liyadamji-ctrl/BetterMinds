@@ -1,0 +1,18 @@
+[project]
+name = "betterminds"
+version = "0.1.0"
+description = "ResumeRise AI Flask app for BetterMinds"
+requires-python = ">=3.10"
+
+dependencies = [
+    "flask==3.0.2",
+    "groq==0.5.0",
+    "pypdf==4.1.0",
+    "requests==2.31.0",
+    "python-dotenv==1.0.1",
+    "httpx==0.25.0",
+    "supabase==2.4.0",
+]
+
+[tool.vercel]
+entrypoint = "api/index.py:app"
