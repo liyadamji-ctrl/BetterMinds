@@ -6,24 +6,33 @@ from supabase import create_client, Client
 import pypdf
 import json
 
-# Load environment variables
+# Load environment variables from local .env file
 load_dotenv()
 
-# Vercel isolates serverless execution blocks. 
-# Storing templates locally inside the api/ folder guarantees they are bundled correctly.
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-TEMPLATE_DIR = os.path.join(BASE_DIR, 'templates')
-
-app = Flask(__name__, template_folder=TEMPLATE_DIR)
+# Since templates are now inside the api/ folder alongside index.py,
+# Flask can locate them natively using standard relative lookup mechanics.
+app = Flask(__name__, template_folder='templates')
 app.secret_key = os.environ.get("FLASK_SECRET_KEY", "resumerise-ai-default-key-2026")
 
 GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
 SUPABASE_URL = os.environ.get("SUPABASE_URL")
 SUPABASE_KEY = os.environ.get("SUPABASE_KEY")
 
-# Initialize clients securely using verified environment variables
-groq_client = Groq(api_key=GROQ_API_KEY) if GROQ_API_KEY else None
-supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY) if SUPABASE_URL and SUPABASE_KEY else None
+# Safely initialize clients to protect the runtime execution from malformed env parameters
+groq_client = None
+supabase = None
+
+if GROQ_API_KEY:
+    try:
+        groq_client = Groq(api_key=GROQ_API_KEY)
+    except Exception:
+        groq_client = None
+
+if SUPABASE_URL and SUPABASE_KEY:
+    try:
+        supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+    except Exception:
+        supabase = None
 
 @app.route('/')
 def home():
@@ -63,7 +72,7 @@ def api_set_session():
 def api_login():
     """Verifies existing credentials against the data cluster or requests signup direction."""
     if not supabase:
-        return jsonify({"status": "error", "message": "Supabase structural integration missing."}), 500
+        return jsonify({"status": "error", "message": "Supabase structural integration missing or misconfigured."}), 500
     
     data = request.get_json() or {}
     email = data.get('email', '').strip()
@@ -92,7 +101,7 @@ def api_login():
 def api_signup():
     """Appends explicit registration definitions directly into the Supabase authorization tables."""
     if not supabase:
-        return jsonify({"status": "error", "message": "Supabase structural integration missing."}), 500
+        return jsonify({"status": "error", "message": "Supabase structural integration missing or misconfigured."}), 500
 
     data = request.get_json() or {}
     email = data.get('email', '').strip()
@@ -115,19 +124,15 @@ def api_signup():
 
 @app.route('/api/analyze', methods=['POST'])
 def analyze_resume():
-    """
-    Gathers student text inputs, target career profiles, and regional details,
-    then processes them via Groq's active production engine using JSON mode.
-    """
+    """Gathers student inputs and processes them via Groq's engine using JSON mode."""
     if not GROQ_API_KEY or not groq_client:
         return jsonify({
             "status": "error", 
-            "message": "Groq API Key is missing! Check your local .env configuration."
+            "message": "Groq API Key is missing or invalid! Check your dashboard configuration."
         }), 500
 
     resume_text = ""
 
-    # 1. Process uploaded PDF files if attached
     if 'resume_file' in request.files and request.files['resume_file'].filename != '':
         file = request.files['resume_file']
         try:
@@ -136,12 +141,9 @@ def analyze_resume():
         except Exception as e:
             return jsonify({"status": "error", "message": f"Failed to parse PDF file: {str(e)}"}), 400
     else:
-        # Fall back to reading pasted form raw text entries
         resume_text = request.form.get("resume_text", "").strip()
 
-    # 2. Capture demographic and industry interest vectors
     career_interest = request.form.get("career_interest", "General/Undecided")
-    
     location_scope = request.form.get("location_scope", "Nationwide").strip()
     location_detail = request.form.get("location_detail", "").strip()
 
@@ -154,7 +156,6 @@ def analyze_resume():
         return jsonify({"status": "error", "message": "Please input your experience details or upload a draft PDF resume."}), 400
 
     try:
-        # STRONGLY GROUNDED STUDENT WAGE PROMPT CONTROLS
         system_prompt = (
             "You are an expert high school career coach specializing in helping teenagers find part-time jobs and summer internships.\n"
             "Analyze the student's background information and map it against their targeted field with strict realism.\n\n"
