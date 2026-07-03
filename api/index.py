@@ -6,22 +6,13 @@ from supabase import create_client, Client
 import pypdf
 import json
 
-# Load environment variables from local .env file
+# Load environment variables
 load_dotenv()
 
-# Fail-safe template path lookup to support raw root layout configuration across environments
+# Vercel isolates serverless execution blocks. 
+# Storing templates locally inside the api/ folder guarantees they are bundled correctly.
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-POSSIBLE_PATHS = [
-    os.path.abspath(os.path.join(BASE_DIR, '../templates')),  # Standard local development layout
-    os.path.abspath(os.path.join(BASE_DIR, 'templates')),     # Flattened serverless runtime layout
-    os.path.abspath(os.path.join(os.getcwd(), 'templates'))   # Root working directory fallback layout
-]
-
-TEMPLATE_DIR = POSSIBLE_PATHS[0]
-for path in POSSIBLE_PATHS:
-    if os.path.exists(os.path.join(path, 'index.html')):
-        TEMPLATE_DIR = path
-        break
+TEMPLATE_DIR = os.path.join(BASE_DIR, 'templates')
 
 app = Flask(__name__, template_folder=TEMPLATE_DIR)
 app.secret_key = os.environ.get("FLASK_SECRET_KEY", "resumerise-ai-default-key-2026")
