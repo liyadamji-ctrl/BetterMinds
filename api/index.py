@@ -15,24 +15,34 @@ app = Flask(__name__, template_folder='templates')
 app.secret_key = os.environ.get("FLASK_SECRET_KEY", "resumerise-ai-default-key-2026")
 
 GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
+# Look for either SUPABASE_KEY or the standard SUPABASE_ANON_KEY name
 SUPABASE_URL = os.environ.get("SUPABASE_URL")
-SUPABASE_KEY = os.environ.get("SUPABASE_KEY")
+SUPABASE_KEY = os.environ.get("SUPABASE_KEY") or os.environ.get("SUPABASE_ANON_KEY")
 
-# Safely initialize clients to protect the runtime execution from malformed env parameters
+# Safely initialize clients
 groq_client = None
 supabase = None
 
 if GROQ_API_KEY:
     try:
         groq_client = Groq(api_key=GROQ_API_KEY)
-    except Exception:
+    except Exception as e:
+        print(f"Groq Init Error: {e}")
         groq_client = None
 
 if SUPABASE_URL and SUPABASE_KEY:
     try:
-        supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
-    except Exception:
+        # Clean up strings to remove accidental whitespace or quotes from copy-pasting
+        clean_url = SUPABASE_URL.strip().strip('"').strip("'")
+        clean_key = SUPABASE_KEY.strip().strip('"').strip("'")
+        
+        supabase: Client = create_client(clean_url, clean_key)
+        print("Supabase client initialized successfully!")
+    except Exception as e:
+        print(f"CRITICAL ERROR: Supabase initialization failed: {e}")
         supabase = None
+else:
+    print(f"CRITICAL ERROR: Missing credentials. URL Found: {bool(SUPABASE_URL)}, KEY Found: {bool(SUPABASE_KEY)}")
 
 @app.route('/')
 def home():
