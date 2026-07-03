@@ -9,9 +9,19 @@ import json
 # Load environment variables from local .env file
 load_dotenv()
 
-# Resolve the absolute path to the templates folder to prevent TemplateNotFound exceptions
+# Fail-safe template path lookup to support raw root layout configuration across environments
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-TEMPLATE_DIR = os.path.abspath(os.path.join(BASE_DIR, '../templates'))
+POSSIBLE_PATHS = [
+    os.path.abspath(os.path.join(BASE_DIR, '../templates')),  # Standard local development layout
+    os.path.abspath(os.path.join(BASE_DIR, 'templates')),     # Flattened serverless runtime layout
+    os.path.abspath(os.path.join(os.getcwd(), 'templates'))   # Root working directory fallback layout
+]
+
+TEMPLATE_DIR = POSSIBLE_PATHS[0]
+for path in POSSIBLE_PATHS:
+    if os.path.exists(os.path.join(path, 'index.html')):
+        TEMPLATE_DIR = path
+        break
 
 app = Flask(__name__, template_folder=TEMPLATE_DIR)
 app.secret_key = os.environ.get("FLASK_SECRET_KEY", "resumerise-ai-default-key-2026")
